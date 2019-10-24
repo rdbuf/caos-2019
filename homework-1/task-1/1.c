@@ -14,11 +14,11 @@ typedef struct task task;
 #define MIN(a, b) ((a < b) ? (a) : (b))
 
 task read_task(FILE* file) {
-    task res;
+    task res = {0};
     fscanf(file, "%i", &res.delay);
 
-    char* command = NULL;
-    unsigned long n = 0;
+    char* command = calloc(1, 1);
+    unsigned long n = 1;
     getline(&command, &n, file);
     memcpy(res.command, command, MIN(n, 256));
     free(command);
@@ -42,13 +42,13 @@ struct dynamic_array_ ## elem_t
 #define INIT_ARRAY(array) { \
     array->capacity = 1; \
     array->size = 0; \
-    array->storage = calloc(array->capacity, sizeof(array->storage[0])); \
+    array->storage = calloc(array->capacity, sizeof array->storage[0] * array->capacity); \
 }
 
 #define PUSH(array, a) { \
     if (array->size == array->capacity) { \
         array->capacity *= 2; \
-        array->storage = realloc(array->storage, sizeof(array->storage[0]) * array->capacity); \
+        array->storage = realloc(array->storage, sizeof array->storage[0] * array->capacity); \
     } \
     array->storage[array->size] = a; \
     array->size += 1; \
