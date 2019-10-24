@@ -1,4 +1,2 @@
-# Computer Architecture and Operating Systems
-
-### Условия задач:
-<img src="./statement.jpg" title="Условия задач" height=354px> </img>
+## Задание 1
+<img src="./statement.jpg" title="Условия задач" width=700px> </img>
