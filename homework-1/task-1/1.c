@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
     INIT_ARRAY(pipes);
     for (int i = 0; i < array->size; ++i) {
         int delay = array->storage[i].delay;
-        while (time(NULL) - start < delay) { /* busy wait */ }
+        while (time(NULL) - start < delay) { sleep(1); } // could've been sleeping once
         FILE* pipe = popen(array->storage[i].command, "r");
         PUSH(pipes, pipe);
     }

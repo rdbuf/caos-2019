@@ -13,6 +13,7 @@
 #include <utime.h>
 
 char* concat_paths_unsafe(const char *s1, const char *s2) {
+    // snprintf() otherwise
     int len1 = strlen(s1);
     int len2 = strlen(s2);
     char *result = calloc(len1 + len2 + 2, 1);
@@ -23,6 +24,7 @@ char* concat_paths_unsafe(const char *s1, const char *s2) {
 }
 
 int upd_file(const char* src, const char* dst) {
+    // should've been done with sendfile
     char buf[4096];
     int ret = 0;
 
@@ -33,7 +35,11 @@ int upd_file(const char* src, const char* dst) {
     if (src_stat_ret != 0) { ret = 1; goto exit; }
     if (dst_stat_ret == 0) {
         if (src_st.st_mtime <= dst_st.st_mtime) {
-            chmod(dst, src_st.st_mode);
+            if (chmod(dst, src_st.st_mode) != 0 || chown(dst, src_st.st_uid, src_st.st_gid) != 0) {
+                printf("chmod or chown failed, try running as root\n");
+                ret = 1;
+                goto exit;
+            }
             /* No need for further processing */
             printf("skipped: %s\n", src);
             return 0;
@@ -41,7 +47,7 @@ int upd_file(const char* src, const char* dst) {
     }
 
     int fd_src = open(src, O_RDONLY);
-    int fd_dst = open(dst, O_WRONLY | O_CREAT, src_st.st_mode);
+    int fd_dst = open(dst, O_WRONLY | O_CREAT, 0777);
     if (fd_src < 0 || fd_dst < 0) { ret = 1; goto exit; }
 
     struct utimbuf utimbuf = {.actime=src_st.st_atime, .modtime=src_st.st_mtime};
@@ -57,6 +63,12 @@ int upd_file(const char* src, const char* dst) {
             written_bytes += written_current;
             remaining_bytes -= written_current;
         }
+    }
+
+    if (chmod(dst, src_st.st_mode) != 0 || chown(dst, src_st.st_uid, src_st.st_gid) != 0) {
+        printf("chmod or chown failed, try running as root\n");
+        ret = 1;
+        goto exit;
     }
 
     exit: {
@@ -123,12 +135,13 @@ int descend(const char* src_path, const char* dst_path) {
     if (stat(dst_path, &dst_st) != 0) {
         if (errno != ENOENT) { ret = 1; goto exit; }
         printf("%s does not exist, creating\n", dst_path);
-        if (mkdir(dst_path, src_st.st_mode) == -1) {
+        if (mkdir(dst_path, 0777) == -1) {
             printf("failed to create %s: %s\n", dst_path, strerror(errno));
             ret = 1;
             goto exit;
         }
     }
+    chmod(dst_path, 0777);
 
     struct dirent* src_dirent;
     while ((src_dirent = readdir(src_dir)) != NULL) {
@@ -153,7 +166,6 @@ int descend(const char* src_path, const char* dst_path) {
         }
         if (S_ISDIR(src_entry_st.st_mode)) {
             if (dst_stat_ret != -1 && !S_ISDIR(dst_entry_st.st_mode)) { unlink(dst_entry_path); }
-            chmod(dst_entry_path, src_entry_st.st_mode);
             ret = ret || descend(src_entry_path, dst_entry_path);
         } else if (S_ISREG(src_entry_st.st_mode)) {
             if (dst_stat_ret != -1 && !S_ISREG(dst_entry_st.st_mode)) { rm_recursively(dst_entry_path); }
@@ -163,8 +175,17 @@ int descend(const char* src_path, const char* dst_path) {
         free(dst_entry_path);
     }
 
+    if (chmod(dst_path, src_st.st_mode) != 0 || chown(dst_path, src_st.st_uid, src_st.st_gid) != 0) {
+        printf("chmod or chown failed, try running as root\n");
+        ret = 1;
+        goto exit;
+    }
+
     exit: {
         closedir(src_dir);
+        if (errno != 0 && ret != 0) {
+            printf("%s: error occured: %s\n", __func__, strerror(errno));
+        }
         return ret;
     }
 }
@@ -181,6 +202,6 @@ int main(int argc, char** argv) {
         snprintf(buf, 4096, "tar -c \"%s\" | gzip > \"%s.tar.gz\" && echo \"%s.tar.gz\" successfully created\n", argv[2], argv[3], argv[3]);
         system(buf);
     } else {
-        system("echo some failure occured\n");
+        printf("some failure occured\n");
     }
 }
