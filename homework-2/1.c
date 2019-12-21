@@ -2,6 +2,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 int main() {
 	char* buf = NULL;
@@ -22,10 +23,13 @@ int main() {
 			fprintf(stderr, "\e[31merror: quota limit of N=%d was reached\e[39m\n", N);
 			continue;
 		}
-		if (popen(buf, "r") != NULL) {
-			++n;
-			fprintf(stderr, "\e[32msuccessfully started (n=%d):\e[39m %s", n, buf);
+
+		if (fork() == 0) {
+			execl("/bin/sh", "/bin/sh", "-c", buf, NULL);
 		}
+
+		++n;
+		fprintf(stderr, "\e[32mstarted (n=%d):\e[39m %s", n, buf);
 	}
 
 	free(buf);
